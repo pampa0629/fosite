@@ -300,6 +300,46 @@ func TestDeviceUserCode_HandleTokenEndpointRequest(t *testing.T) {
 	}
 }
 
+func TestDeviceUserCode_InvalidatedCodeRevokesOriginalRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	coreStorage := internal.NewMockRFC8628CoreStorage(ctrl)
+	rateLimitStrategy := internal.NewMockDeviceRateLimitStrategy(ctrl)
+	revocationStorage := internal.NewMockTokenRevocationStorage(ctrl)
+	deviceStrategy := RFC8628HMACSHAStrategy
+
+	deviceCode, _, err := deviceStrategy.GenerateDeviceCode(context.Background())
+	require.NoError(t, err)
+	accessRequest := &fosite.AccessRequest{
+		GrantTypes: fosite.Arguments{string(fosite.GrantTypeDeviceCode)},
+		Request: fosite.Request{
+			ID: "new-token-request",
+			Client: &fosite.DefaultClient{
+				ID:         "client",
+				GrantTypes: fosite.Arguments{string(fosite.GrantTypeDeviceCode)},
+			},
+			Form:        url.Values{"device_code": {deviceCode}},
+			Session:     &fosite.DefaultSession{},
+			RequestedAt: time.Now().UTC(),
+		},
+	}
+	deviceRequest := &fosite.DeviceRequest{Request: fosite.Request{ID: "original-device-request"}}
+
+	rateLimitStrategy.EXPECT().ShouldRateLimit(gomock.Any(), deviceCode).Return(false, nil)
+	coreStorage.EXPECT().GetDeviceCodeSession(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(deviceRequest, fosite.ErrInvalidatedDeviceCode)
+	revocationStorage.EXPECT().RevokeAccessToken(gomock.Any(), "original-device-request").Return(nil)
+	revocationStorage.EXPECT().RevokeRefreshToken(gomock.Any(), "original-device-request").Return(nil)
+
+	handler := DeviceCodeTokenEndpointHandler{
+		DeviceRateLimitStrategy: rateLimitStrategy,
+		DeviceCodeStrategy:      &deviceStrategy,
+		CoreStorage:             coreStorage,
+		TokenRevocationStorage:  revocationStorage,
+	}
+	err = handler.HandleTokenEndpointRequest(context.Background(), accessRequest)
+	require.ErrorIs(t, err, fosite.ErrInvalidGrant)
+}
+
 func TestDeviceUserCode_HandleTokenEndpointRequest_RateLimiting(t *testing.T) {
 	for k, strategy := range map[string]struct {
 		oauth2.CoreStrategy

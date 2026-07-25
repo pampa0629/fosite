@@ -157,7 +157,7 @@ func (c *DeviceCodeTokenEndpointHandler) HandleTokenEndpointRequest(ctx context.
 	var ar fosite.DeviceRequester
 	if ar, err = c.session(ctx, requester, signature); err != nil {
 		if ar != nil && (errors.Is(err, fosite.ErrInvalidatedAuthorizeCode) || errors.Is(err, fosite.ErrInvalidatedDeviceCode)) {
-			return c.revokeTokens(ctx, requester.GetID())
+			return c.revokeTokens(ctx, ar.GetID())
 		}
 
 		return err
