@@ -39,13 +39,11 @@ func (c *Handler) HandleAuthorizeEndpointRequest(ctx context.Context, ar fosite.
 		return nil
 	}
 
-	challenge := ar.GetRequestForm().Get("code_challenge")
-	method := ar.GetRequestForm().Get("code_challenge_method")
-	client := ar.GetClient()
-
-	if err := c.validate(ctx, challenge, method, client); err != nil {
+	if err := c.ValidateAuthorizeRequest(ctx, ar); err != nil {
 		return err
 	}
+	challenge := ar.GetRequestForm().Get("code_challenge")
+	method := ar.GetRequestForm().Get("code_challenge_method")
 
 	// We don't need a session if it's not enforced and the PKCE parameters are not provided by the client.
 	if challenge == "" && method == "" {
@@ -66,6 +64,21 @@ func (c *Handler) HandleAuthorizeEndpointRequest(ctx context.Context, ar fosite.
 	}
 
 	return nil
+}
+
+// ValidateAuthorizeRequest validates PKCE without issuing an authorization
+// code or creating a storage session. Hosted consent flows can call it before
+// persisting a pending authorization request.
+func (c *Handler) ValidateAuthorizeRequest(ctx context.Context, ar fosite.AuthorizeRequester) error {
+	if !ar.GetResponseTypes().Has("code") {
+		return nil
+	}
+	return c.validate(
+		ctx,
+		ar.GetRequestForm().Get("code_challenge"),
+		ar.GetRequestForm().Get("code_challenge_method"),
+		ar.GetClient(),
+	)
 }
 
 func (c *Handler) validate(ctx context.Context, challenge, method string, client fosite.Client) error {

@@ -7,7 +7,7 @@ This fork is the protocol engine dependency governed by the ADDP IAM OAuth/OIDC 
 - Upstream: `https://github.com/ory/fosite`
 - Upstream baseline: `a5f0b09bf31c17297b25637bb3fec2ff7a55b159`
 - License: Apache-2.0, unchanged from upstream
-- Controlled release: `v0.50.0-addp.1`
+- Controlled release: `v0.50.0-addp.2`
 
 ## Patch inventory
 
@@ -15,6 +15,7 @@ This fork is the protocol engine dependency governed by the ADDP IAM OAuth/OIDC 
 2. Upstream PR #887, commits `577e158` and `7d64c9c`: restore JWT audience arrays decoded as `[]interface{}`.
 3. ADDP patch: invalidated Device Code replay revokes Access and Refresh Tokens by the persisted original Device Request ID rather than the new Token Request ID.
 4. ADDP test-only patch: avoid copying `sync.RWMutex` in the MemoryStore authentication fixture so the controlled release passes `go vet ./...`.
+5. ADDP hosted-consent extension: expose side-effect-free PKCE authorization-request validation so a pending request can be rejected before it is persisted, while retaining the same validator used during code issuance.
 
 ADDP supplies the persistent RFC 8628 `DeviceRateLimitStrategy` in System. The upstream default no-op strategy is not used by the ADDP Provider.
 

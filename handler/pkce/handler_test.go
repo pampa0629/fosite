@@ -81,6 +81,23 @@ func TestPKCEHandleAuthorizeEndpointRequest(t *testing.T) {
 	require.NoError(t, h.HandleAuthorizeEndpointRequest(context.Background(), r, w))
 }
 
+func TestValidateAuthorizeRequestDoesNotCreateSession(t *testing.T) {
+	store := storage.NewMemoryStore()
+	h := &Handler{Storage: store, Config: &fosite.Config{EnforcePKCE: true}}
+	request := fosite.NewAuthorizeRequest()
+	request.ResponseTypes = fosite.Arguments{"code"}
+	request.Client = &fosite.DefaultClient{Public: true}
+	request.Form.Set("code_challenge", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+	request.Form.Set("code_challenge_method", "S256")
+
+	require.NoError(t, h.ValidateAuthorizeRequest(context.Background(), request))
+	_, err := store.GetPKCERequestSession(context.Background(), "unused", nil)
+	require.ErrorIs(t, err, fosite.ErrNotFound)
+
+	request.Form.Del("code_challenge")
+	require.ErrorIs(t, h.ValidateAuthorizeRequest(context.Background(), request), fosite.ErrInvalidRequest)
+}
+
 func TestPKCEHandlerValidate(t *testing.T) {
 	s := storage.NewMemoryStore()
 	ms := &mockCodeStrategy{}
