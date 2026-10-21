@@ -67,7 +67,7 @@ func TestNewRevocationRequest(t *testing.T) {
 			form: url.Values{
 				"token": {"foo"},
 			},
-			expectErr: ErrInvalidClient,
+			expectErr: ErrTemporarilyUnavailable,
 			mock: func() {
 				store.EXPECT().GetClient(gomock.Any(), gomock.Eq("foo")).Return(nil, errors.New(""))
 			},

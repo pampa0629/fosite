@@ -7,12 +7,15 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -595,3 +598,82 @@ func TestAuthenticateClientTwice(t *testing.T) {
 	assert.EqualError(t, err, ErrJTIKnown.Error())
 	assert.Nil(t, c)
 }
+
+// A client lookup failure must remain distinguishable from invalid credentials.
+type failingClientLookupStore struct {
+	Storage
+	err error
+}
+
+func (s failingClientLookupStore) GetClient(context.Context, string) (Client, error) {
+	return nil, s.err
+}
+
+func TestAuthenticateClientLookupFailures(t *testing.T) {
+	assertion := mustGenerateRSAAssertion(t, jwt.MapClaims{"sub": "lookup-client"}, gen.MustRSAKey(), "lookup-key")
+	for _, method := range []string{"basic", "post", "public", "assertion", "authorize", "introspection"} {
+		t.Run(method, func(t *testing.T) {
+			for _, tc := range []struct {
+				name  string
+				cause error
+				want  *RFC6749Error
+			}{
+				{"unknown-client", ErrNotFound, ErrInvalidClient},
+				{"wrapped-unknown-client", fmt.Errorf("lookup: %w", ErrNotFound), ErrInvalidClient},
+				{"canceled", context.Canceled, ErrTemporarilyUnavailable},
+				{"deadline", context.DeadlineExceeded, ErrTemporarilyUnavailable},
+				{"closed-database", sql.ErrConnDone, ErrTemporarilyUnavailable},
+				{"connection-lost", io.EOF, ErrTemporarilyUnavailable},
+				{"internal", errors.New("private storage diagnostic"), ErrTemporarilyUnavailable},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					cause := fmt.Errorf("storage lookup: %w", tc.cause)
+					f := &Fosite{Store: failingClientLookupStore{err: cause}, Config: &Config{}}
+					request := httptest.NewRequest(http.MethodPost, "/token", nil)
+					form := url.Values{"client_id": {"lookup-client"}}
+					switch method {
+					case "basic":
+						request.SetBasicAuth("lookup-client", "private-secret")
+					case "post":
+						form.Set("client_secret", "private-secret")
+					case "assertion":
+						form.Set("client_assertion_type", clientAssertionTypeForTest)
+						form.Set("client_assertion", assertion)
+					}
+					var err error
+					switch method {
+					case "authorize":
+						request = httptest.NewRequest(http.MethodGet, "/authorize?client_id=lookup-client", nil)
+						_, err = f.NewAuthorizeRequest(context.Background(), request)
+					case "introspection":
+						request = httptest.NewRequest(http.MethodPost, "/introspect", strings.NewReader("token=private-token"))
+						request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+						request.SetBasicAuth("lookup-client", "private-secret")
+						_, err = f.NewIntrospectionRequest(context.Background(), request, nil)
+						if errors.Is(tc.want, ErrInvalidClient) {
+							tc.want = ErrRequestUnauthorized
+						}
+					default:
+						var client Client
+						client, err = f.AuthenticateClient(context.Background(), request, form)
+						require.Nil(t, client)
+					}
+					require.ErrorIs(t, err, tc.want)
+					require.ErrorIs(t, err, tc.cause)
+					response := httptest.NewRecorder()
+					f.WriteAccessError(context.Background(), response, nil, err)
+					assert.Equal(t, tc.want.CodeField, response.Code)
+					var payload map[string]interface{}
+					require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
+					assert.Equal(t, tc.want.ErrorField, payload["error"])
+					assert.NotContains(t, response.Body.String(), "private-secret")
+					assert.NotContains(t, response.Body.String(), "storage lookup")
+					assert.NotContains(t, response.Body.String(), "private storage diagnostic")
+					assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
+				})
+			}
+		})
+	}
+}
+
+const clientAssertionTypeForTest = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"

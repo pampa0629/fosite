@@ -10,8 +10,9 @@ import (
 
 // ClientManager defines the (persistent) manager interface for clients.
 type ClientManager interface {
-	// GetClient loads the client by its ID or returns an error
-	// if the client does not exist or another error occurred.
+	// GetClient loads the client by its ID. Return ErrNotFound (or an error
+	// wrapping it) when the client does not exist. Other errors indicate that
+	// storage is unavailable and must not be treated as invalid credentials.
 	GetClient(ctx context.Context, id string) (Client, error)
 	// ClientAssertionJWTValid returns an error if the JTI is
 	// known or the DB check failed and nil if the JTI is not known.

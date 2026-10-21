@@ -74,7 +74,7 @@ func TestNewAccessRequest(t *testing.T) {
 			form: url.Values{
 				"grant_type": {"foo"},
 			},
-			expectErr: ErrInvalidClient,
+			expectErr: ErrTemporarilyUnavailable,
 			mock: func() {
 				store.EXPECT().GetClient(gomock.Any(), gomock.Eq("foo")).Return(nil, errors.New(""))
 			},
@@ -99,7 +99,7 @@ func TestNewAccessRequest(t *testing.T) {
 			form: url.Values{
 				"grant_type": {"foo"},
 			},
-			expectErr: ErrInvalidClient,
+			expectErr: ErrTemporarilyUnavailable,
 			mock: func() {
 				store.EXPECT().GetClient(gomock.Any(), gomock.Eq("foo")).Return(nil, errors.New(""))
 			},

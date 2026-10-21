@@ -63,7 +63,7 @@ func TestNewDeviceRequestWithPublicClient(t *testing.T) {
 		expectedError: ErrInvalidClient,
 		method:        "POST",
 		mock: func() {
-			store.EXPECT().GetClient(gomock.Any(), gomock.Eq("client_id")).Return(nil, errors.New(""))
+			store.EXPECT().GetClient(gomock.Any(), gomock.Eq("client_id")).Return(nil, ErrNotFound)
 		},
 	}, {
 		description: "fails because scope not allowed",

@@ -93,7 +93,7 @@ func (f *Fosite) DefaultClientAuthenticationStrategy(ctx context.Context, r *htt
 
 			client, err = f.Store.GetClient(ctx, clientID)
 			if err != nil {
-				return nil, errorsx.WithStack(ErrInvalidClient.WithWrap(err).WithDebug(err.Error()))
+				return nil, clientLookupError(err, ErrInvalidClient)
 			}
 
 			oidcClient, ok := client.(OpenIDConnectClient)
@@ -199,7 +199,7 @@ func (f *Fosite) DefaultClientAuthenticationStrategy(ctx context.Context, r *htt
 
 	client, err := f.Store.GetClient(ctx, clientID)
 	if err != nil {
-		return nil, errorsx.WithStack(ErrInvalidClient.WithWrap(err).WithDebug(err.Error()))
+		return nil, clientLookupError(err, ErrInvalidClient)
 	}
 
 	if oidcClient, ok := client.(OpenIDConnectClient); !ok {
@@ -222,6 +222,15 @@ func (f *Fosite) DefaultClientAuthenticationStrategy(ctx context.Context, r *htt
 	}
 
 	return client, nil
+}
+
+// clientLookupError keeps unavailable storage distinct from rejected credentials.
+// Only a missing client is evidence that client authentication should be denied.
+func clientLookupError(err error, notFoundError *RFC6749Error) error {
+	if errors.Is(err, ErrNotFound) {
+		return errorsx.WithStack(notFoundError.WithWrap(err).WithDebug(err.Error()))
+	}
+	return errorsx.WithStack(ErrTemporarilyUnavailable.WithWrap(err).WithDebug(err.Error()))
 }
 
 func audienceMatchesTokenURLs(claims jwt.MapClaims, tokenURLs []string) bool {

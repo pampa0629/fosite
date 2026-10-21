@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gomock "go.uber.org/mock/gomock"
@@ -46,7 +45,7 @@ func TestNewAuthorizeRequest(t *testing.T) {
 			r:             &http.Request{},
 			expectedError: ErrInvalidClient,
 			mock: func() {
-				store.EXPECT().GetClient(gomock.Any(), gomock.Any()).Return(nil, errors.New("foo"))
+				store.EXPECT().GetClient(gomock.Any(), gomock.Any()).Return(nil, ErrNotFound)
 			},
 		},
 		/* invalid redirect uri */
@@ -56,7 +55,7 @@ func TestNewAuthorizeRequest(t *testing.T) {
 			query:         url.Values{"redirect_uri": []string{"invalid"}},
 			expectedError: ErrInvalidClient,
 			mock: func() {
-				store.EXPECT().GetClient(gomock.Any(), gomock.Any()).Return(nil, errors.New("foo"))
+				store.EXPECT().GetClient(gomock.Any(), gomock.Any()).Return(nil, ErrNotFound)
 			},
 		},
 		/* invalid client */
@@ -66,7 +65,7 @@ func TestNewAuthorizeRequest(t *testing.T) {
 			query:         url.Values{"redirect_uri": []string{"https://foo.bar/cb"}},
 			expectedError: ErrInvalidClient,
 			mock: func() {
-				store.EXPECT().GetClient(gomock.Any(), gomock.Any()).Return(nil, errors.New("foo"))
+				store.EXPECT().GetClient(gomock.Any(), gomock.Any()).Return(nil, ErrNotFound)
 			},
 		},
 		/* redirect client mismatch */

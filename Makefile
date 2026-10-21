@@ -11,8 +11,11 @@ help:
 licenses: .bin/licenses node_modules  # checks open-source licenses
 	.bin/licenses
 
-test:  # runs all tests
+test:  # verifies the controlled release
 	go test ./...
+	go test -race . ./handler/oauth2 ./handler/pkce ./handler/rfc8628 ./token/jwt
+	go vet ./...
+	go mod verify
 
 .bin/goimports: Makefile
 	GOBIN=$(shell pwd)/.bin go install golang.org/x/tools/cmd/goimports@latest
