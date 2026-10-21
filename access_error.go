@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/pkg/errors"
 )
 
 // Convert an error to an http response as per RFC6749
@@ -40,4 +42,21 @@ func (f *Fosite) writeJsonError(ctx context.Context, rw http.ResponseWriter, req
 	rw.WriteHeader(rfcerr.CodeField)
 	// ignoring the error because the connection is broken when it happens
 	_, _ = rw.Write(js)
+}
+
+// writeServerError prevents writers that suppress expected protocol failures
+// from reporting an unavailable service as successful revocation/inactivity.
+func (f *Fosite) writeServerError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	var protocolError *RFC6749Error
+	if !errors.As(err, &protocolError) {
+		if errors.Is(err, ErrNotFound) {
+			return false
+		}
+		protocolError = ErrServerError.WithWrap(err).WithDebug(err.Error())
+	}
+	if protocolError.CodeField < http.StatusInternalServerError {
+		return false
+	}
+	f.writeJsonError(ctx, rw, nil, protocolError)
+	return true
 }

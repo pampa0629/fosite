@@ -37,7 +37,8 @@ func TestWriteIntrospectionError(t *testing.T) {
 	rw.EXPECT().Write(gomock.Any())
 	f.WriteIntrospectionError(context.Background(), rw, errorsx.WithStack(ErrInvalidRequest))
 
-	rw.EXPECT().Write([]byte("{\"active\":false}\n"))
+	rw.EXPECT().WriteHeader(http.StatusInternalServerError)
+	rw.EXPECT().Write(gomock.Any())
 	f.WriteIntrospectionError(context.Background(), rw, errors.New(""))
 
 	rw.EXPECT().Write([]byte("{\"active\":false}\n"))

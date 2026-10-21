@@ -7,7 +7,7 @@ This fork is the protocol engine dependency governed by the ADDP IAM OAuth/OIDC 
 - Upstream: `https://github.com/ory/fosite`
 - Upstream baseline: `a5f0b09bf31c17297b25637bb3fec2ff7a55b159`
 - License: Apache-2.0, unchanged from upstream
-- Controlled release: `v0.50.0-addp.3`
+- Controlled release: `v0.50.0-addp.4`
 
 ## Patch inventory
 
@@ -18,6 +18,8 @@ This fork is the protocol engine dependency governed by the ADDP IAM OAuth/OIDC 
 5. ADDP hosted-consent extension: expose side-effect-free PKCE authorization-request validation so a pending request can be rejected before it is persisted, while retaining the same validator used during code issuance.
 
 6. ADDP client lookup error classification: preserve each endpoint's existing rejection for `ErrNotFound` (including wrapped errors), but return `temporarily_unavailable` / HTTP 503 for other Storage failures. Apply the same rule to Basic/Post/Public/JWT client authentication, authorization requests and Basic introspection. Preserve the cause for diagnostics and retain default suppression of storage details in protocol responses. Invalid secrets and disallowed authentication methods remain rejected. No Provider, Strategy or Storage interface changes.
+
+7. ADDP protocol response hardening: revocation and introspection response writers preserve server-side errors instead of suppressing them as HTTP 200. Unknown raw errors produce a safe `server_error` / HTTP 500; explicit `temporarily_unavailable` remains HTTP 503. Missing/inactive-token responses retain their protocol semantics. Tests exercise the native authorization, introspection and revocation writers, not only the access-token error writer.
 
 ADDP supplies the persistent RFC 8628 `DeviceRateLimitStrategy` in System. The upstream default no-op strategy is not used by the ADDP Provider.
 

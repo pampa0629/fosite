@@ -93,6 +93,10 @@ func (f *Fosite) WriteRevocationResponse(ctx context.Context, rw http.ResponseWr
 		return
 	}
 
+	if f.writeServerError(ctx, rw, err) {
+		return
+	}
+
 	if errors.Is(err, ErrInvalidRequest) {
 		rw.Header().Set("Content-Type", "application/json;charset=UTF-8")
 

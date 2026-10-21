@@ -611,7 +611,7 @@ func (s failingClientLookupStore) GetClient(context.Context, string) (Client, er
 
 func TestAuthenticateClientLookupFailures(t *testing.T) {
 	assertion := mustGenerateRSAAssertion(t, jwt.MapClaims{"sub": "lookup-client"}, gen.MustRSAKey(), "lookup-key")
-	for _, method := range []string{"basic", "post", "public", "assertion", "authorize", "introspection"} {
+	for _, method := range []string{"basic", "post", "public", "assertion", "authorize", "introspection", "revocation"} {
 		t.Run(method, func(t *testing.T) {
 			for _, tc := range []struct {
 				name  string
@@ -641,10 +641,16 @@ func TestAuthenticateClientLookupFailures(t *testing.T) {
 						form.Set("client_assertion", assertion)
 					}
 					var err error
+					var authorizeRequest AuthorizeRequester
 					switch method {
 					case "authorize":
 						request = httptest.NewRequest(http.MethodGet, "/authorize?client_id=lookup-client", nil)
-						_, err = f.NewAuthorizeRequest(context.Background(), request)
+						authorizeRequest, err = f.NewAuthorizeRequest(context.Background(), request)
+					case "revocation":
+						request = httptest.NewRequest(http.MethodPost, "/revoke", strings.NewReader("token=private-token"))
+						request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+						request.SetBasicAuth("lookup-client", "private-secret")
+						err = f.NewRevocationRequest(context.Background(), request)
 					case "introspection":
 						request = httptest.NewRequest(http.MethodPost, "/introspect", strings.NewReader("token=private-token"))
 						request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -661,7 +667,16 @@ func TestAuthenticateClientLookupFailures(t *testing.T) {
 					require.ErrorIs(t, err, tc.want)
 					require.ErrorIs(t, err, tc.cause)
 					response := httptest.NewRecorder()
-					f.WriteAccessError(context.Background(), response, nil, err)
+					switch method {
+					case "authorize":
+						f.WriteAuthorizeError(context.Background(), response, authorizeRequest, err)
+					case "introspection":
+						f.WriteIntrospectionError(context.Background(), response, err)
+					case "revocation":
+						f.WriteRevocationResponse(context.Background(), response, err)
+					default:
+						f.WriteAccessError(context.Background(), response, nil, err)
+					}
 					assert.Equal(t, tc.want.CodeField, response.Code)
 					var payload map[string]interface{}
 					require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
